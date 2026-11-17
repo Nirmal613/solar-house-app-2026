@@ -1,3 +1,4 @@
+
 name: Solar House APK Builder
 
 on:
@@ -14,16 +15,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Find and Extract ZIP
+      - name: Extract Solar House ZIP
         run: |
-          ZIP=$(find . -maxdepth 1 -name "*.zip" | head -n 1)
+          ZIP=$(find . -type f -name "*.zip" -not -path "./.git/*" | head -n 1)
           if [ -z "$ZIP" ]; then
-            echo "ZIP file not found"
+            echo "ZIP not found"
             exit 1
           fi
           mkdir extracted
           unzip -q "$ZIP" -d extracted
-          cp -a extracted/solar-house-project/. .
+          PROJECT=$(find extracted -type f -name "settings.gradle.kts" | head -n 1)
+          if [ -z "$PROJECT" ]; then
+            echo "Android project not found"
+            exit 1
+          fi
+          PROJECT_DIR=$(dirname "$PROJECT")
+          cp -a "$PROJECT_DIR"/. .
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -31,10 +38,28 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Build APK
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Gradle 9.3.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
+
+      - name: Create Debug Keystore
         run: |
-          chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          keytool -genkeypair -v \
+            -keystore debug.keystore \
+            -storepass android \
+            -alias androiddebugkey \
+            -keypass android \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
+
+      - name: Build APK
+        run: gradle assembleDebug --no-daemon
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
@@ -42,4 +67,3 @@ jobs:
           name: Solar-House-APK
           path: app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
-          
