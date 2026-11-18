@@ -12,48 +12,58 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Source Code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Java
+      - name: Java Setup
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Android SDK
+      - name: Android SDK Setup
         uses: android-actions/setup-android@v3
 
-      - name: Extract Android Project
+      - name: Extract Project ZIP
         shell: bash
         run: |
-          mkdir extracted
-          unzip -q solar-house-apk-build-ready.zip -d extracted
+          set -e
 
-          PROJECT=$(find extracted -type f -name "settings.gradle.kts" | head -n 1)
+          ZIP_FILE="solar-house-apk-build-ready.zip"
 
-          if [ -z "$PROJECT" ]; then
-            echo "ERROR: settings.gradle.kts not found inside ZIP"
-            find extracted -maxdepth 4 -type f
+          if [ ! -f "$ZIP_FILE" ]; then
+            echo "ZIP FILE NOT FOUND"
             exit 1
           fi
 
-          PROJECT_DIR=$(dirname "$PROJECT")
+          mkdir -p extracted
+          unzip -q "$ZIP_FILE" -d extracted
+
+          SETTINGS=$(find extracted -name settings.gradle.kts -type f | head -n 1)
+
+          if [ -z "$SETTINGS" ]; then
+            echo "ANDROID PROJECT NOT FOUND"
+            find extracted -maxdepth 3 -type f
+            exit 1
+          fi
+
+          PROJECT_DIR=$(dirname "$SETTINGS")
           cp -a "$PROJECT_DIR"/. .
 
-          echo "Project extracted successfully"
-          ls -la
+          echo "PROJECT READY"
 
-      - name: Accept Android SDK Licenses
+      - name: Accept SDK Licenses
+        shell: bash
         run: |
           yes | sdkmanager --licenses || true
 
-      - name: Build APK
+      - name: Build Solar House APK
+        shell: bash
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --stacktrace --no-daemon
+          ./gradlew assembleDebug --no-daemon --stacktrace
 
-      - name: Upload APK
+      - name: Save APK
         uses: actions/upload-artifact@v4
         with:
           name: Solar-House-APK
