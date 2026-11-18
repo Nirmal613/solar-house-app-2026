@@ -12,23 +12,46 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # 1. Get source code
       - name: Checkout Source Code
         uses: actions/checkout@v4
 
+      # 2. Setup Java
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
+      # 3. Setup Android SDK
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
 
+      # 4. Accept Android SDK Licenses
+      - name: Accept Android SDK Licenses
+        shell: bash
+        run: |
+          set +o pipefail
+          yes | sdkmanager --licenses
+          set -o pipefail
+
+      # 5. Check project files
+      - name: Check Android Project
+        run: |
+          echo "Checking project..."
+          ls -la
+          test -f gradlew
+          test -f settings.gradle.kts
+
+      # 6. Build APK
       - name: Build Android APK
         run: |
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
 
+      # 7. Upload APK
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
