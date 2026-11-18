@@ -12,46 +12,47 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Get source code
       - name: Checkout Source Code
         uses: actions/checkout@v4
 
-      # 2. Setup Java
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      # 3. Setup Android SDK
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
-        with:
-          packages: platform-tools
 
-      # 4. Accept Android SDK Licenses
-      - name: Accept Android SDK Licenses
+      - name: Extract Android Project
         shell: bash
         run: |
-          set +o pipefail
-          yes | sdkmanager --licenses
-          set -o pipefail
+          mkdir extracted
+          unzip -q solar-house-apk-build-ready.zip -d extracted
 
-      # 5. Check project files
-      - name: Check Android Project
-        run: |
-          echo "Checking project..."
+          PROJECT=$(find extracted -type f -name "settings.gradle.kts" | head -n 1)
+
+          if [ -z "$PROJECT" ]; then
+            echo "ERROR: settings.gradle.kts not found inside ZIP"
+            find extracted -maxdepth 4 -type f
+            exit 1
+          fi
+
+          PROJECT_DIR=$(dirname "$PROJECT")
+          cp -a "$PROJECT_DIR"/. .
+
+          echo "Project extracted successfully"
           ls -la
-          test -f gradlew
-          test -f settings.gradle.kts
 
-      # 6. Build APK
-      - name: Build Android APK
+      - name: Accept Android SDK Licenses
+        run: |
+          yes | sdkmanager --licenses || true
+
+      - name: Build APK
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew assembleDebug --stacktrace --no-daemon
 
-      # 7. Upload APK
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
