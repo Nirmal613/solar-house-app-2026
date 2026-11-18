@@ -23,36 +23,41 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
-        with:
-          packages: ''
 
-      - name: Extract Project ZIP
+      - name: Extract Project
         shell: bash
         run: |
           set -e
           mkdir -p extracted
           unzip -q solar-house-apk-build-ready.zip -d extracted
 
+          echo "Searching Android project..."
+          find extracted -type f -name settings.gradle.kts
+
           SETTINGS=$(find extracted -type f -name settings.gradle.kts | head -n 1)
 
           if [ -z "$SETTINGS" ]; then
-            echo "Android project not found"
+            echo "settings.gradle.kts not found"
             exit 1
           fi
 
           PROJECT_DIR=$(dirname "$SETTINGS")
+          echo "Project folder: $PROJECT_DIR"
+
+          echo "$PROJECT_DIR" > project_path.txt
+
           cp -a "$PROJECT_DIR"/. .
 
-          echo "Project extracted"
+          echo "Project files:"
           ls -la
 
       - name: Accept SDK Licenses
-        shell: bash
-        run: |
-          yes | sdkmanager --licenses || true
+        run: yes | sdkmanager --licenses || true
 
       - name: Build APK
+        shell: bash
         run: |
+          set -e
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon --stacktrace
 
