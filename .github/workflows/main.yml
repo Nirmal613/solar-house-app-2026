@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
+      - name: Checkout Source Code
         uses: actions/checkout@v4
 
       - name: Setup Java
@@ -21,49 +21,45 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Extract Project
+      - name: Extract Android Project
         shell: bash
         run: |
           set -e
+
           mkdir -p extracted
           unzip -q solar-house-apk-build-ready.zip -d extracted
 
-          echo "Searching Android project..."
-          find extracted -type f -name settings.gradle.kts
+          echo "Searching project files..."
 
-          SETTINGS=$(find extracted -type f -name settings.gradle.kts | head -n 1)
+          find extracted -type f \( \
+            -name "settings.gradle.kts" -o \
+            -name "gradlew" \
+          \)
 
-          if [ -z "$SETTINGS" ]; then
-            echo "settings.gradle.kts not found"
+          WRAPPER=$(find extracted -type f -name gradlew | head -n 1)
+
+          if [ -z "$WRAPPER" ]; then
+            echo "ERROR: gradlew not found in ZIP"
+            find extracted -maxdepth 4 -type f
             exit 1
           fi
 
-          PROJECT_DIR=$(dirname "$SETTINGS")
-          echo "Project folder: $PROJECT_DIR"
+          PROJECT_DIR=$(dirname "$WRAPPER")
 
-          echo "$PROJECT_DIR" > project_path.txt
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
 
-          cp -a "$PROJECT_DIR"/. .
+          chmod +x "$WRAPPER"
 
-          echo "Project files:"
-          ls -la
+          echo "Android project found: $PROJECT_DIR"
 
-      - name: Accept SDK Licenses
-        run: yes | sdkmanager --licenses || true
-
-      - name: Build APK
-        shell: bash
+      - name: Build Solar House APK
+        working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          set -e
-          chmod +x gradlew
           ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Solar-House-APK
-          path: app/build/outputs/apk/debug/*.apk
+          path: extracted/**/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
